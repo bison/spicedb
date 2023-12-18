@@ -21,7 +21,7 @@ import (
 	"github.com/authzed/spicedb/pkg/validationfile"
 )
 
-type engineBuilderFunc func(options Config) (datastore.Datastore, error)
+type engineBuilderFunc func(ctx context.Context, options Config) (datastore.Datastore, error)
 
 const (
 	MemoryEngine    = "memory"
@@ -289,7 +289,7 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	}
 	log.Ctx(ctx).Info().Msgf("using %s datastore engine", opts.Engine)
 
-	ds, err := dsBuilder(*opts)
+	ds, err := dsBuilder(ctx, *opts)
 	if err != nil {
 		return nil, err
 	}
@@ -355,8 +355,9 @@ func NewDatastore(ctx context.Context, options ...ConfigOption) (datastore.Datas
 	return ds, nil
 }
 
-func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
+func newCRDBDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	return crdb.NewCRDBDatastore(
+		ctx,
 		opts.URI,
 		crdb.GCWindow(opts.GCWindow),
 		crdb.RevisionQuantization(opts.RevisionQuantization),
@@ -385,7 +386,7 @@ func newCRDBDatastore(opts Config) (datastore.Datastore, error) {
 	)
 }
 
-func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
+func newPostgresDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	pgOpts := []postgres.Option{
 		postgres.GCWindow(opts.GCWindow),
 		postgres.GCEnabled(!opts.ReadOnly),
@@ -411,11 +412,12 @@ func newPostgresDatastore(opts Config) (datastore.Datastore, error) {
 		postgres.MaxRetries(uint8(opts.MaxRetries)),
 		postgres.MigrationPhase(opts.MigrationPhase),
 	}
-	return postgres.NewPostgresDatastore(opts.URI, pgOpts...)
+	return postgres.NewPostgresDatastore(ctx, opts.URI, pgOpts...)
 }
 
-func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
+func newSpannerDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	return spanner.NewSpannerDatastore(
+		ctx,
 		opts.URI,
 		spanner.FollowerReadDelay(opts.FollowerReadDelay),
 		spanner.RevisionQuantization(opts.RevisionQuantization),
@@ -432,7 +434,7 @@ func newSpannerDatastore(opts Config) (datastore.Datastore, error) {
 	)
 }
 
-func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
+func newMySQLDatastore(ctx context.Context, opts Config) (datastore.Datastore, error) {
 	mysqlOpts := []mysql.Option{
 		mysql.GCInterval(opts.GCInterval),
 		mysql.GCWindow(opts.GCWindow),
@@ -450,10 +452,10 @@ func newMySQLDatastore(opts Config) (datastore.Datastore, error) {
 		mysql.MaxRetries(uint8(opts.MaxRetries)),
 		mysql.OverrideLockWaitTimeout(1),
 	}
-	return mysql.NewMySQLDatastore(opts.URI, mysqlOpts...)
+	return mysql.NewMySQLDatastore(ctx, opts.URI, mysqlOpts...)
 }
 
-func newMemoryDatstore(opts Config) (datastore.Datastore, error) {
+func newMemoryDatstore(_ context.Context, opts Config) (datastore.Datastore, error) {
 	log.Warn().Msg("in-memory datastore is not persistent and not feasible to run in a high availability fashion")
 	return memdb.NewMemdbDatastore(opts.WatchBufferLength, opts.RevisionQuantization, opts.GCWindow)
 }
